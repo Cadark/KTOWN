@@ -9,6 +9,7 @@ import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
@@ -40,6 +41,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import com.android.volley.AuthFailureError;
+import com.android.volley.DefaultRetryPolicy;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
@@ -55,6 +57,7 @@ import java.util.Map;
 @SuppressLint("SetJavaScriptEnabled")
 public class MainActivity extends AppCompatActivity implements View.OnClickListener{
     private static final String TAG = "MainActivity";
+    private static final int MY_SOCKET_TIMEOUT_MS = 8000 ;
     private WebView wvShow;
     private Button valid, refuse;
 
@@ -183,7 +186,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         switch (v.getId()) {
             case R.id.uploadImgBtn:
                 Toast.makeText(getApplicationContext(), "Upload Img", Toast.LENGTH_SHORT).show();
-                uploadImage();
+                //uploadImage();
+                new uploadImageAsyn().execute();
                 dialog2.dismiss();
                 break;
 
@@ -205,14 +209,19 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         //Showing the progress dialog
         Log.i(TAG, "Upload Image");
         final ProgressDialog loading = ProgressDialog.show(this, "Uploading...", "Please wait...", false, false);
-        StringRequest stringRequest = new StringRequest(Request.Method.POST, UPLOAD_URL,
+        final StringRequest stringRequest = new StringRequest(Request.Method.POST, UPLOAD_URL,
                 new Response.Listener<String>() {
                     @Override
                     public void onResponse(String s) {
+                        Log.e(TAG,""+s.getBytes().length);
                         //Disimissing the progress dialog
                         loading.dismiss();
                         //Showing toast message of the response
-                        Toast.makeText(MainActivity.this, s, Toast.LENGTH_LONG).show();
+                        //set image to dog
+                        //String linkTest = "http://android2-001-site1.1tempurl.com/img/uploads/208.png";
+                        webView.loadUrl("javascript:add_image('"+s+"')");
+                        Log.d("RES_LINKL", s);
+                        Toast.makeText(MainActivity.this, "Response mess: " + s, Toast.LENGTH_LONG).show();
                     }
                 },
                 new Response.ErrorListener() {
@@ -220,7 +229,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     public void onErrorResponse(VolleyError volleyError) {
                         //Dismissing the progress dialog
                         loading.dismiss();
-                        Log.e(TAG, "" +volleyError);
+                        Log.e(TAG, "Volley Error: " +volleyError.networkResponse);
                         //Showing toast
                         try {
 
@@ -251,6 +260,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 return params;
             }
         };
+        //set time ( cannot time out err)
+        stringRequest.setRetryPolicy(new DefaultRetryPolicy(
+                MY_SOCKET_TIMEOUT_MS,
+                DefaultRetryPolicy.DEFAULT_MAX_RETRIES,
+                DefaultRetryPolicy.DEFAULT_BACKOFF_MULT));
 
 
         //Creating a Request Queue
@@ -258,5 +272,84 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         //Adding request to the queue
         requestQueue.add(stringRequest);
+    }
+
+    class uploadImageAsyn extends AsyncTask<Void, Void, String> {
+
+        @Override
+        protected String doInBackground(Void... params) {
+
+            final String[] link = {""};
+            Log.i(TAG, "Upload Image");
+            final ProgressDialog loading = ProgressDialog.show(getApplicationContext(), "Uploading...", "Please wait...", false, false);
+            final StringRequest stringRequest = new StringRequest(Request.Method.POST, UPLOAD_URL,
+                    new Response.Listener<String>() {
+                        @Override
+                        public void onResponse(String s) {
+                            Log.e(TAG,""+s.getBytes().length);
+                            //Disimissing the progress dialog
+                            loading.dismiss();
+                            //Showing toast message of the response
+                            //set image to dog
+                            //String linkTest = "http://android2-001-site1.1tempurl.com/img/uploads/208.png";
+                            //webView.loadUrl("javascript:add_image('"+s+"')");
+                            //Log.d("RES_LINKL", s);
+                            //Toast.makeText(MainActivity.this, "Response mess: " + s, Toast.LENGTH_LONG).show();
+                            link[0] = s;
+                        }
+                    },
+                    new Response.ErrorListener() {
+                        @Override
+                        public void onErrorResponse(VolleyError volleyError) {
+                            //Dismissing the progress dialog
+                            loading.dismiss();
+                            Log.e(TAG, "Volley Error: " +volleyError.networkResponse);
+                            //Showing toast
+                            try {
+
+                            } catch (Exception e) {
+                                Toast.makeText(MainActivity.this, volleyError.getMessage().toString(), Toast.LENGTH_LONG).show();
+                                Log.e(TAG, "Err: " + e);
+                            }
+
+                        }
+                    }) {
+                @Override
+                protected Map<String, String> getParams() throws AuthFailureError {
+                    //Converting Bitmap to String
+                    String image = getStringImage(curImg);
+
+                    //Getting Image Name
+                    //String name = editTextName.getText().toString().trim();
+                    String name = "testimage";
+
+                    //Creating parameters
+                    Map<String, String> params = new Hashtable<String, String>();
+
+                    //Adding parameters
+                    params.put(KEY_IMAGE, image);
+                    params.put(KEY_NAME, name);
+
+                    //returning parameters
+                    return params;
+                }
+            };
+            //Creating a Request Queue
+            RequestQueue requestQueue = Volley.newRequestQueue(getApplicationContext());
+
+            //Adding request to the queue
+            requestQueue.add(stringRequest);
+
+            return link[0];
+        }
+
+        @Override
+        protected void onPostExecute(String s) {
+            super.onPostExecute(s);
+
+            webView.loadUrl("javascript:add_image('"+s+"')");
+            Log.d("RES_LINKL", s);
+            Toast.makeText(MainActivity.this, "Response mess: " + s, Toast.LENGTH_LONG).show();
+        }
     }
 }
